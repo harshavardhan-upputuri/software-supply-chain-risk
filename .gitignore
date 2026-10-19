@@ -1,0 +1,30 @@
+# Python virtual environment
+.venv/
+**/.venv/
+node_modules/
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Generated data outputs
+data
+
+# DuckDB temporary / WAL files
+*.duckdb
+*.duckdb.wal
+*.tmp
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# IDE / OS files
+.vscode/
+.idea/
+Thumbs.db
+[Dd]esktop.ini
