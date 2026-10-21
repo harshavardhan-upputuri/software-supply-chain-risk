@@ -6,12 +6,14 @@ from .views import (
     ProjectDetailAPIView,
     ProjectDependencyGraphAPIView,
     CacheStatsAPIView,
+    ImportNextProjectAPIView,
 )
 
 app_name = "dependency_graph"
 
 urlpatterns = [
     path("projects/", ProjectListAPIView.as_view(), name="project-list"),
+    path("projects/import-next/", ImportNextProjectAPIView.as_view(), name="project-import-next"),
     path("projects/<int:id>/", ProjectDetailAPIView.as_view(), name="project-detail"),
     path(
         "projects/<int:id>/dependency-graph/",

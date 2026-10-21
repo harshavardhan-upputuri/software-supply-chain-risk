@@ -50,6 +50,14 @@ export const graphService = {
   },
 
   /**
+   * Import exactly one new eligible project from the dataset CSV
+   */
+  async importNextProject() {
+    const response = await apiClient.post("/projects/import-next/");
+    return response.data;
+  },
+
+  /**
    * Retrieve global package graph cache statistics
    */
   async getCacheStats() {

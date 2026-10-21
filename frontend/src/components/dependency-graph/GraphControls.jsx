@@ -1,6 +1,17 @@
 import React from "react";
-import { Search, ZoomIn, ZoomOut, Maximize2, RefreshCw, Layers } from "lucide-react";
+import {
+  Search,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RefreshCw,
+  Layers,
+  Network,
+  GitGraph,
+  X,
+} from "lucide-react";
 import { Button } from "../common/Button";
+import { LAYOUT_MODES } from "../../services/dependency-graph/graphTransformers";
 
 export function GraphControls({
   onZoomIn,
@@ -8,68 +19,114 @@ export function GraphControls({
   onFitView,
   filterQuery,
   onFilterChange,
+  matchCount = null,
   isLegendOpen,
   onToggleLegend,
   onRebuild,
   building = false,
+  layoutMode = LAYOUT_MODES.FORCE,
+  onToggleLayoutMode,
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md">
-      {/* Search Filter */}
-      <div className="relative min-w-[180px] sm:min-w-[220px]">
-        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur-xs">
+      {/* Search Input */}
+      <div className="relative min-w-[190px] sm:min-w-[220px]">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
           value={filterQuery}
           onChange={(e) => onFilterChange(e.target.value)}
           placeholder="Filter package names..."
-          className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white text-slate-800 placeholder:text-slate-400"
+          className="w-full rounded-md border border-slate-200 bg-slate-50/70 py-1 pl-8 pr-14 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+        {filterQuery && (
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {typeof matchCount === "number" && (
+              <span className="rounded-full bg-slate-200 px-1.5 py-0.2 font-mono text-[10px] font-medium text-slate-700">
+                {matchCount}
+              </span>
+            )}
+            <button
+              onClick={() => onFilterChange("")}
+              className="rounded p-0.5 text-slate-400 hover:text-slate-600"
+              title="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+      <div className="hidden h-4 w-px bg-slate-200 sm:block" />
 
-      {/* Zoom / Pan Actions */}
-      <div className="flex items-center gap-1">
+      {/* Navigation Controls */}
+      <div className="flex items-center gap-0.5">
         <button
           onClick={onZoomIn}
-          className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
           title="Zoom In"
         >
-          <ZoomIn className="w-4 h-4" />
+          <ZoomIn className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={onZoomOut}
-          className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
           title="Zoom Out"
         >
-          <ZoomOut className="w-4 h-4" />
+          <ZoomOut className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={onFitView}
-          className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-          title="Fit to Screen"
+          className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          title="Fit view to screen"
         >
-          <Maximize2 className="w-4 h-4" />
+          <Maximize2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+      <div className="hidden h-4 w-px bg-slate-200 sm:block" />
 
-      {/* Legend toggle */}
+      {/* Layout Mode Toggle */}
+      {onToggleLayoutMode && (
+        <button
+          onClick={onToggleLayoutMode}
+          className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+            layoutMode === LAYOUT_MODES.FORCE
+              ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+          }`}
+          title={`Layout: ${
+            layoutMode === LAYOUT_MODES.FORCE ? "Force-Directed" : "Hierarchical"
+          }`}
+        >
+          {layoutMode === LAYOUT_MODES.FORCE ? (
+            <>
+              <Network className="h-3.5 w-3.5 text-blue-600" />
+              <span>Network</span>
+            </>
+          ) : (
+            <>
+              <GitGraph className="h-3.5 w-3.5 text-purple-600" />
+              <span>Layered</span>
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Legend Toggle */}
       <button
         onClick={onToggleLegend}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+        className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
           isLegendOpen
-            ? "bg-slate-100 border-slate-300 text-slate-800"
-            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+            ? "border-slate-300 bg-slate-100 text-slate-900"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
         }`}
       >
-        <Layers className="w-3.5 h-3.5 text-slate-500" />
+        <Layers className="h-3.5 w-3.5 text-slate-500" />
         <span>Legend</span>
       </button>
 
-      {/* Force Rebuild Action */}
+      {/* Rebuild Trigger */}
       {onRebuild && (
         <Button
           variant="secondary"
@@ -77,9 +134,9 @@ export function GraphControls({
           icon={RefreshCw}
           loading={building}
           onClick={onRebuild}
-          title="Re-query deps.dev and rebuild graph"
+          title="Rebuild graph from manifest"
         >
-          Rebuild Graph
+          Rebuild
         </Button>
       )}
     </div>

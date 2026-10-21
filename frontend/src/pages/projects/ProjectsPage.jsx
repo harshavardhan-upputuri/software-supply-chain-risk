@@ -6,7 +6,7 @@ import ProjectPagination from "./components/ProjectPagination";
 import { LoadingState } from "../../components/common/LoadingState";
 import { ErrorState } from "../../components/common/ErrorState";
 import { EmptyState } from "../../components/common/EmptyState";
-import { Boxes } from "lucide-react";
+import { Boxes, CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState([]);
@@ -17,6 +17,8 @@ export function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -51,17 +53,73 @@ export function ProjectsPage() {
     setCurrentPage(1);
   };
 
+  const handleImportNext = async () => {
+    if (importing) return;
+    setImporting(true);
+    setNotification(null);
+
+    try {
+      const result = await graphService.importNextProject();
+      if (result.is_end_of_dataset) {
+        setNotification({
+          type: "info",
+          message: result.message || "No more eligible unimported projects remaining in the dataset.",
+        });
+      } else {
+        setNotification({
+          type: "success",
+          message: result.message || `Project imported successfully: ${result.project?.project_name}`,
+        });
+        // Refresh project list using current fetching mechanism
+        await loadProjects();
+      }
+    } catch (err) {
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to import next project";
+      setNotification({
+        type: "error",
+        message: errMsg,
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
-      {/* Page Title */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-          Project Inventory
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Browse software projects, inspect package manifests, and generate dependency graphs
-        </p>
-      </div>
+      {/* Feedback Banner for Import Actions */}
+      {notification && (
+        <div
+          className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border text-xs transition-all ${
+            notification.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : notification.type === "error"
+              ? "bg-rose-50 border-rose-200 text-rose-800"
+              : "bg-blue-50 border-blue-200 text-blue-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : notification.type === "error" ? (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            ) : (
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+            )}
+            <span className="font-medium">{notification.message}</span>
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors shrink-0"
+            title="Dismiss message"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <ProjectSearchBar
@@ -71,6 +129,8 @@ export function ProjectsPage() {
         onEcosystemChange={handleEcosystemChange}
         onRefresh={loadProjects}
         loading={loading}
+        onImportNext={handleImportNext}
+        importing={importing}
       />
 
       {/* Content State */}

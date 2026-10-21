@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import graphService from "../../services/dependency-graph/graphService";
-import { transformGraphData } from "../../services/dependency-graph/graphTransformers";
+import {
+  transformGraphData,
+  LAYOUT_MODES,
+} from "../../services/dependency-graph/graphTransformers";
 
 export function useDependencyGraph(projectId) {
   const [project, setProject] = useState(null);
   const [graphSummary, setGraphSummary] = useState(null);
+  const [rawNodes, setRawNodes] = useState([]);
+  const [rawEdges, setRawEdges] = useState([]);
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [nodeMap, setNodeMap] = useState(new Map());
+  const [layoutMode, setLayoutMode] = useState(LAYOUT_MODES.FORCE);
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(null);
@@ -32,9 +38,16 @@ export function useDependencyGraph(projectId) {
         });
 
         setGraphSummary(graphData.graph);
+
+        const fetchedRawNodes = graphData.nodes?.results || [];
+        const fetchedRawEdges = graphData.edges?.results || [];
+        setRawNodes(fetchedRawNodes);
+        setRawEdges(fetchedRawEdges);
+
         const { nodes: flowNodes, edges: flowEdges, nodeMap: map } = transformGraphData(
-          graphData.nodes?.results || [],
-          graphData.edges?.results || []
+          fetchedRawNodes,
+          fetchedRawEdges,
+          { layoutMode: LAYOUT_MODES.FORCE }
         );
         setNodes(flowNodes);
         setEdges(flowEdges);
@@ -43,8 +56,11 @@ export function useDependencyGraph(projectId) {
         if (err.status === 404) {
           // Graph has not been built yet
           setGraphSummary(null);
+          setRawNodes([]);
+          setRawEdges([]);
           setNodes([]);
           setEdges([]);
+          setNodeMap(new Map());
         } else {
           throw err;
         }
@@ -60,20 +76,43 @@ export function useDependencyGraph(projectId) {
     loadGraph();
   }, [loadGraph]);
 
-  const triggerBuild = useCallback(async (forceRebuild = false) => {
-    if (!projectId) return;
-    setBuilding(true);
-    setError(null);
+  // Toggle between Network and Layered layout modes without re-fetching
+  const toggleLayoutMode = useCallback(() => {
+    setLayoutMode((prevMode) => {
+      const nextMode =
+        prevMode === LAYOUT_MODES.FORCE ? LAYOUT_MODES.LAYERED : LAYOUT_MODES.FORCE;
 
-    try {
-      await graphService.buildDependencyGraph(projectId, forceRebuild);
-      await loadGraph();
-    } catch (err) {
-      setError(err.message || "Failed to construct dependency graph");
-    } finally {
-      setBuilding(false);
-    }
-  }, [projectId, loadGraph]);
+      if (rawNodes.length > 0) {
+        const { nodes: flowNodes, edges: flowEdges, nodeMap: map } = transformGraphData(
+          rawNodes,
+          rawEdges,
+          { layoutMode: nextMode }
+        );
+        setNodes(flowNodes);
+        setEdges(flowEdges);
+        setNodeMap(map);
+      }
+      return nextMode;
+    });
+  }, [rawNodes, rawEdges]);
+
+  const triggerBuild = useCallback(
+    async (forceRebuild = false) => {
+      if (!projectId) return;
+      setBuilding(true);
+      setError(null);
+
+      try {
+        await graphService.buildDependencyGraph(projectId, forceRebuild);
+        await loadGraph();
+      } catch (err) {
+        setError(err.message || "Failed to construct dependency graph");
+      } finally {
+        setBuilding(false);
+      }
+    },
+    [projectId, loadGraph]
+  );
 
   return {
     project,
@@ -81,6 +120,8 @@ export function useDependencyGraph(projectId) {
     nodes,
     edges,
     nodeMap,
+    layoutMode,
+    toggleLayoutMode,
     loading,
     building,
     error,

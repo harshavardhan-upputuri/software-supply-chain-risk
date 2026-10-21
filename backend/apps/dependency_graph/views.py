@@ -17,6 +17,7 @@ from .serializers import (
 )
 from .services.graph_builder import GraphBuilder
 from .services.cache_manager import CacheManager
+from .services.project_importer import ProjectImporterService
 
 logger = logging.getLogger(__name__)
 
@@ -158,3 +159,48 @@ class CacheStatsAPIView(APIView):
     def get(self, request):
         stats = CacheManager.get_cache_statistics()
         return Response(stats, status=status.HTTP_200_OK)
+
+
+class ImportNextProjectAPIView(APIView):
+    """POST /api/projects/import-next/ - Import exactly one new eligible project from the dataset CSV."""
+
+    def post(self, request):
+        importer = ProjectImporterService()
+        try:
+            project, is_end, info = importer.import_next_project()
+        except FileNotFoundError as e:
+            logger.error("Dataset file error: %s", e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.exception("Failed to import next project: %s", e)
+            return Response(
+                {"error": f"Failed to import project: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if is_end or not project:
+            return Response(
+                {
+                    "message": info.get("message", "No more eligible unimported projects remaining in the dataset."),
+                    "project": None,
+                    "rows_scanned": info.get("rows_scanned", 0),
+                    "projects_imported": info.get("projects_imported", 0),
+                    "is_end_of_dataset": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        serialized_project = ProjectListSerializer(project).data
+        return Response(
+            {
+                "message": info.get("message", f"Project imported successfully: {project.project_name}"),
+                "project": serialized_project,
+                "rows_scanned": info.get("rows_scanned", 0),
+                "projects_imported": info.get("projects_imported", 0),
+                "is_end_of_dataset": False,
+            },
+            status=status.HTTP_201_CREATED,
+        )

@@ -16,6 +16,8 @@ export function DependencyGraphPage() {
     graphSummary,
     nodes,
     edges,
+    layoutMode,
+    toggleLayoutMode,
     loading,
     building,
     error,
@@ -25,6 +27,7 @@ export function DependencyGraphPage() {
 
   const {
     selectedNode,
+    setSelectedNode,
     filterQuery,
     setFilterQuery,
     isLegendOpen,
@@ -95,11 +98,13 @@ export function DependencyGraphPage() {
       <GraphCanvas
         nodes={flowNodes}
         edges={flowEdges}
+         projectName={project.project_name}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         selectedNode={selectedNode}
         onNodeClick={onNodeClick}
         onClearSelection={clearSelection}
+        onSelectNodeById={(targetNode) => setSelectedNode(targetNode)}
         filterQuery={filterQuery}
         onFilterChange={setFilterQuery}
         isLegendOpen={isLegendOpen}
@@ -107,6 +112,8 @@ export function DependencyGraphPage() {
         onRebuild={() => setIsRebuildModalOpen(true)}
         building={building}
         onBuildGraph={() => triggerBuild(false)}
+        layoutMode={layoutMode}
+        onToggleLayoutMode={toggleLayoutMode}
       />
 
       {/* Force Rebuild Confirmation Dialog */}

@@ -1,3 +1,4 @@
+
 import React from "react";
 import { NavLink } from "react-router-dom";
 import {
@@ -7,9 +8,19 @@ import {
   ShieldCheck,
   Server,
   ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+  ChevronRight,
 } from "lucide-react";
 
-export function Sidebar({ isOpen, onClose }) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  onToggle,
+  collapsed = false,
+  onCollapsedChange,
+}) {
   const navItems = [
     {
       label: "Dashboard",
@@ -31,93 +42,191 @@ export function Sidebar({ isOpen, onClose }) {
     },
   ];
 
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else if (onCollapsedChange) {
+      onCollapsedChange(!collapsed);
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  const closeMobileSidebar = () => {
+    if (onClose) onClose();
+  };
+
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile backdrop */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden"
-          onClick={onClose}
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={closeMobileSidebar}
+          className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[2px] lg:hidden"
         />
       )}
 
-      {/* Sidebar container */}
+      {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`
+          fixed inset-y-0 left-0 z-50
+          flex flex-col overflow-hidden
+          border-r border-slate-800/80
+          bg-slate-950 text-slate-300
+          shadow-xl shadow-slate-950/10
+          transition-[width,transform] duration-300 ease-in-out
+          ${collapsed ? "w-[76px]" : "w-64"}
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0
+        `}
       >
-        {/* Brand / Logo */}
-        <div className="h-16 px-6 flex items-center gap-3 border-b border-slate-800">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <ShieldCheck className="w-5 h-5" />
+        {/* Brand */}
+        <div
+          className={`flex h-[76px] shrink-0 items-center border-b border-slate-800/80 ${collapsed ? "justify-center px-2" : "justify-between px-5"
+            }`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Expand button in collapsed desktop mode */}
+            {collapsed && (
+              <button
+                type="button"
+                onClick={handleToggle}
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+                className="mx-auto mt-4 hidden rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white lg:inline-flex"
+              >
+                <PanelLeftOpen size={19} />
+              </button>
+            )}
+
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="whitespace-nowrap text-[13px] font-bold uppercase tracking-wide text-white">
+                  Supply Chain <span className="text-blue-400">Risk</span>
+                </h1>
+                <p className="mt-1 whitespace-nowrap font-mono text-[9px] uppercase tracking-[0.18em] text-slate-500">
+                  Cascading impact analysis
+                </p>
+              </div>
+            )}
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight text-white uppercase">
-              SupplyChain <span className="text-blue-400">Risk</span>
-            </h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">
-              Dependency Platform
-            </p>
-          </div>
+
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={handleToggle}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+              className="hidden rounded-lg p-2 text-slate-500 transition hover:bg-slate-800 hover:text-white lg:inline-flex"
+            >
+              <PanelLeftClose size={18} />
+            </button>
+          )}
         </div>
 
-        {/* Navigation items */}
-        <div className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
-          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-            Navigation
-          </div>
+
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-6">
+          {!collapsed && (
+            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Workspace
+            </p>
+          )}
+
           {navItems.map((item) => {
             const Icon = item.icon;
+
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
-                onClick={onClose}
+                onClick={closeMobileSidebar}
+                title={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30 font-semibold"
-                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                  `group relative mb-1 flex min-h-11 items-center gap-3 rounded-xl text-[13px] transition-all duration-200 ${collapsed
+                    ? "justify-center px-2"
+                    : "px-3.5"
+                  } ${isActive
+                    ? "bg-blue-600 font-semibold text-white shadow-md shadow-blue-950/30"
+                    : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
                   }`
                 }
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <span className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-blue-300" />
+                    )}
+
+                    <Icon
+                      size={18}
+                      strokeWidth={isActive ? 2.2 : 1.8}
+                      className={`shrink-0 ${isActive
+                          ? "text-white"
+                          : "text-slate-400 group-hover:text-slate-200"
+                        }`}
+                    />
+
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1">{item.label}</span>
+                        {isActive && (
+                          <ChevronRight
+                            size={15}
+                            className="text-blue-200"
+                          />
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
               </NavLink>
             );
           })}
+        </nav>
 
-          <div className="pt-6 px-3 pb-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-            Data Providers
-          </div>
-          <a
-            href="https://deps.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Server className="w-3.5 h-3.5 text-blue-400" />
-              deps.dev v3 API
-            </span>
-            <ExternalLink className="w-3 h-3 text-slate-500" />
-          </a>
-        </div>
+        {/* Bottom section: provider + system status */}
+        <div className="mt-auto shrink-0 border-t border-slate-800/80">
+          {/* Data Providers */}
+          <div className={collapsed ? "px-3 py-4" : "px-4 pb-4 pt-5"}>
+            {!collapsed && (
+              <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Data Providers
+              </p>
+            )}
 
-        {/* System status footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Backend Connected
-            </span>
-            <span className="font-mono text-[10px] text-slate-500">v1.0</span>
+            <a
+              href="https://deps.dev"
+              target="_blank"
+              rel="noreferrer"
+              title={collapsed ? "deps.dev v3 API" : undefined}
+              className={`group flex min-h-10 items-center rounded-lg text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white ${collapsed
+                  ? "justify-center px-2"
+                  : "justify-between px-3"
+                }`}
+            >
+              <span className="flex items-center gap-3">
+                <Server
+                  size={16}
+                  className="shrink-0 text-blue-400"
+                />
+                {!collapsed && <span>deps.dev v3 API</span>}
+              </span>
+
+              {!collapsed && (
+                <ExternalLink
+                  size={13}
+                  className="text-slate-600 transition group-hover:text-slate-300"
+                />
+              )}
+            </a>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1 truncate">
-            PostgreSQL 18 • Django 5
-          </p>
+
+
         </div>
       </aside>
     </>

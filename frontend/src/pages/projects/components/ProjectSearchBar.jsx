@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, RotateCcw } from "lucide-react";
+import { Search, RotateCcw, PlusCircle } from "lucide-react";
 import { Button } from "../../../components/common/Button";
 
 export function ProjectSearchBar({
@@ -9,6 +9,8 @@ export function ProjectSearchBar({
   onEcosystemChange,
   onRefresh,
   loading = false,
+  onImportNext,
+  importing = false,
 }) {
   const ecosystems = [
     { label: "All Ecosystems", value: "ALL" },
@@ -57,10 +59,25 @@ export function ProjectSearchBar({
           icon={RotateCcw}
           onClick={onRefresh}
           loading={loading}
+          disabled={importing}
           title="Refresh Projects"
         >
           Refresh
         </Button>
+
+        {onImportNext && (
+          <Button
+            variant="primary"
+            size="sm"
+            icon={PlusCircle}
+            onClick={onImportNext}
+            loading={importing}
+            disabled={loading || importing}
+            title="Import next eligible project from dataset CSV"
+          >
+            Load Next Project
+          </Button>
+        )}
       </div>
     </div>
   );

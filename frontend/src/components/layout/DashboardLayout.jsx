@@ -5,16 +5,31 @@ import Navbar from "./Navbar";
 
 export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen((prev) => !prev);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar navigation */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+    <div className="min-h-screen bg-slate-50">
+      {/* Sidebar */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        collapsed={isSidebarCollapsed}
+        onCollapsedChange={setIsSidebarCollapsed}
+      />
 
-      {/* Main content wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-        <Navbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-        <main className="flex-1 p-6 lg:p-8 max-w-7xl w-full mx-auto">
+      {/* Main content */}
+      <div
+        className={`flex min-h-screen min-w-0 flex-col transition-[margin] duration-300 ${
+          isSidebarCollapsed ? "lg:ml-[76px]" : "lg:ml-64"
+        }`}
+      >
+        <Navbar onToggleSidebar={toggleSidebar} />
+
+        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
