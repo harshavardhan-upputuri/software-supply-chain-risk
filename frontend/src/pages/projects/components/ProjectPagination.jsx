@@ -1,9 +1,14 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export function ProjectPagination({ currentPage, totalCount, pageSize, onPageChange }) {
+export function ProjectPagination({
+  currentPage = 1,
+  totalCount = 0,
+  pageSize = 10, // Defaults to 10 rows per page
+  onPageChange,
+}) {
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
-  const startItem = (currentPage - 1) * pageSize + 1;
+  const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalCount);
 
   if (totalCount === 0) return null;

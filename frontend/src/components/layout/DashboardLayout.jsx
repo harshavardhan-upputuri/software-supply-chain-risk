@@ -29,7 +29,7 @@ export function DashboardLayout() {
       >
         <Navbar onToggleSidebar={toggleSidebar} />
 
-        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 p-3 ">
           <Outlet />
         </main>
       </div>

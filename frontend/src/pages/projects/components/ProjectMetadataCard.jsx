@@ -7,6 +7,9 @@ import {
   ExternalLink,
   Network,
   FileCode,
+  ShieldAlert,
+  ShieldCheck,
+  Shield,
 } from "lucide-react";
 import { Card } from "../../../components/common/Card";
 import { EcosystemBadge, StatusBadge } from "../../../components/common/Badge";
@@ -102,6 +105,60 @@ export function ProjectMetadataCard({ project }) {
             {project.package_count || project.packages?.length || 1}
           </div>
         </div>
+      </div>
+
+      {/* Vulnerability Status Card */}
+      <div className="mt-6 p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/70 border-slate-200">
+        <div className="flex items-center gap-3">
+          {project.vulnerability_status === "vulnerable" ? (
+            <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+          ) : project.vulnerability_status === "safe" ? (
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+              <Shield className="w-4 h-4" />
+            </div>
+          )}
+
+          <div>
+            <div className="font-semibold text-slate-900 flex items-center gap-2">
+              <span>Security & Vulnerability Status</span>
+              {project.vulnerability_status === "vulnerable" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                  Vulnerable · {project.findings_count} {project.findings_count === 1 ? "finding" : "findings"}
+                </span>
+              ) : project.vulnerability_status === "safe" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                  No known vulnerabilities
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  Not analyzed
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {project.vulnerability_status === "vulnerable"
+                ? `${project.vulnerable_packages_count || 1} package ${project.vulnerable_packages_count === 1 ? "version is" : "versions are"} known to be affected by security advisories in PostgreSQL cache.`
+                : project.vulnerability_status === "safe"
+                ? "All package versions in dependency graph have been scanned with zero matching advisories."
+                : "Vulnerability analysis has not been executed yet for this project."}
+            </p>
+          </div>
+        </div>
+
+        <Link
+          to={`/projects/${project.id}/graph`}
+          className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+        >
+          <span>View in Dependency Graph →</span>
+        </Link>
       </div>
 
       {/* Graph Status Summary if built */}

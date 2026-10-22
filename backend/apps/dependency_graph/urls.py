@@ -7,6 +7,8 @@ from .views import (
     ProjectDependencyGraphAPIView,
     CacheStatsAPIView,
     ImportNextProjectAPIView,
+    ProjectVulnerabilityAnalysisAPIView,
+    VulnerabilityDashboardStatsAPIView,
 )
 
 app_name = "dependency_graph"
@@ -19,6 +21,16 @@ urlpatterns = [
         "projects/<int:id>/dependency-graph/",
         ProjectDependencyGraphAPIView.as_view(),
         name="project-dependency-graph",
+    ),
+    path(
+        "projects/<int:id>/vulnerabilities/analyze/",
+        ProjectVulnerabilityAnalysisAPIView.as_view(),
+        name="project-vulnerabilities-analyze",
+    ),
+    path(
+        "vulnerabilities/dashboard-stats/",
+        VulnerabilityDashboardStatsAPIView.as_view(),
+        name="vulnerability-dashboard-stats",
     ),
     path(
         "dependency-graph/cache-stats/",

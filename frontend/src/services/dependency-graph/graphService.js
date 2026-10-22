@@ -58,10 +58,26 @@ export const graphService = {
   },
 
   /**
+   * Run vulnerability analysis for a project's dependency graph
+   */
+  async analyzeVulnerabilities(id) {
+    const response = await apiClient.post(`/projects/${id}/vulnerabilities/analyze/`);
+    return response.data;
+  },
+
+  /**
    * Retrieve global package graph cache statistics
    */
   async getCacheStats() {
     const response = await apiClient.get("/dependency-graph/cache-stats/");
+    return response.data;
+  },
+
+  /**
+   * Retrieve global vulnerability statistics and latest findings for dashboard
+   */
+  async getVulnerabilityDashboardStats() {
+    const response = await apiClient.get("/vulnerabilities/dashboard-stats/");
     return response.data;
   },
 };

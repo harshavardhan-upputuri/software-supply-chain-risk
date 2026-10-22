@@ -18,6 +18,7 @@ from .serializers import (
 from .services.graph_builder import GraphBuilder
 from .services.cache_manager import CacheManager
 from .services.project_importer import ProjectImporterService
+from .services.vulnerability_service import VulnerabilityService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,21 @@ class ProjectListAPIView(generics.ListAPIView):
 
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            project_ids = [p.id for p in page]
+            vuln_summaries = VulnerabilityService.get_projects_vulnerability_summary(project_ids)
+            serializer = self.get_serializer(page, many=True, context={"vulnerability_summaries": vuln_summaries})
+            return self.get_paginated_response(serializer.data)
+
+        project_ids = list(queryset.values_list("id", flat=True))
+        vuln_summaries = VulnerabilityService.get_projects_vulnerability_summary(project_ids)
+        serializer = self.get_serializer(queryset, many=True, context={"vulnerability_summaries": vuln_summaries})
+        return Response(serializer.data)
+
 
 class ProjectDetailAPIView(generics.RetrieveAPIView):
     """GET /api/projects/{id}/ - Project metadata and original packages list."""
@@ -46,6 +62,12 @@ class ProjectDetailAPIView(generics.RetrieveAPIView):
     queryset = Project.objects.prefetch_related("packages").all()
     serializer_class = ProjectDetailSerializer
     lookup_field = "id"
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        vuln_summaries = VulnerabilityService.get_projects_vulnerability_summary([instance.id])
+        serializer = self.get_serializer(instance, context={"vulnerability_summaries": vuln_summaries})
+        return Response(serializer.data)
 
 
 class ProjectDependencyGraphAPIView(APIView):
@@ -204,3 +226,137 @@ class ImportNextProjectAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class ProjectVulnerabilityAnalysisAPIView(APIView):
+    """POST /api/projects/{id}/vulnerabilities/analyze/
+
+    Runs cache-first vulnerability analysis on package versions in the project's
+    existing dependency graph. Does not modify or rebuild any dependency graph data.
+    """
+
+    def post(self, request, id: int):
+        project = get_object_or_404(Project, id=id)
+
+        vuln_service = VulnerabilityService()
+        result = vuln_service.analyze_project_graph(project.id)
+
+        if result.get("error") and not result.get("summary"):
+            return Response(
+                {"error": result["error"]},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "project_id": project.id,
+                "project_name": project.project_name,
+                "summary": result["summary"],
+                "packages": result["packages"],
+                "findings": result["findings"],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class VulnerabilityDashboardStatsAPIView(APIView):
+    """GET /api/vulnerabilities/dashboard-stats/
+
+    Aggregates global vulnerability metrics and returns the 10 most recent
+    stored vulnerability findings across analyzed projects purely from database records.
+    Never calls OSV.dev or network APIs.
+    """
+
+    def get(self, request):
+        # 1. Analyzed projects from project vulnerability summary
+        summaries = VulnerabilityService.get_projects_vulnerability_summary()
+        analyzed_projects_count = sum(
+            1 for v in summaries.values() if v["vulnerability_status"] in ("vulnerable", "safe")
+        )
+
+        # 2. Total checked packages recorded in cache
+        from .models import PackageVulnerabilityCache, VulnerabilityFinding
+        total_checked_packages = PackageVulnerabilityCache.objects.count()
+
+        # 3. Unique package versions confirmed vulnerable
+        vulnerable_packages_count = PackageVulnerabilityCache.objects.filter(
+            check_status=PackageVulnerabilityCache.STATUS_VULNERABLE
+        ).count()
+
+        # 4. Total distinct vulnerability advisory findings
+        total_advisory_findings = VulnerabilityFinding.objects.count()
+
+        # 5. Critical findings
+        critical_findings_count = VulnerabilityFinding.objects.filter(
+            severity__icontains="CRITICAL"
+        ).count()
+
+        # 6. Map package versions to their associated projects
+        recent_findings_qs = (
+            VulnerabilityFinding.objects.select_related("cache")
+            .order_by("-created_at")[:10]
+        )
+
+        node_projects = (
+            ProjectGraphNode.objects.select_related("project_graph__project")
+            .exclude(version="")
+            .values(
+                "system",
+                "name",
+                "version",
+                "project_graph__project__id",
+                "project_graph__project__project_name",
+            )
+            .distinct()
+        )
+
+        pkg_to_projects = {}
+        for row in node_projects:
+            eco = row["system"].upper()
+            name = row["name"].lower() if eco == "PYPI" else row["name"]
+            key = (eco, name, row["version"])
+            if key not in pkg_to_projects:
+                pkg_to_projects[key] = []
+            proj_info = {
+                "id": row["project_graph__project__id"],
+                "project_name": row["project_graph__project__project_name"],
+            }
+            if proj_info not in pkg_to_projects[key]:
+                pkg_to_projects[key].append(proj_info)
+
+        recent_findings = []
+        for f in recent_findings_qs:
+            cache = f.cache
+            key = (cache.ecosystem, cache.package_name, cache.package_version)
+            associated = pkg_to_projects.get(key, [])
+            primary_project = associated[0] if associated else None
+
+            recent_findings.append({
+                "id": f.id,
+                "vulnerability_id": f.vulnerability_id,
+                "package_name": cache.package_name,
+                "package_version": cache.package_version,
+                "ecosystem": cache.ecosystem,
+                "severity": f.severity,
+                "summary": f.summary,
+                "fixed_version": f.fixed_version,
+                "advisory_url": f.advisory_url,
+                "project": primary_project,
+                "associated_projects": associated,
+            })
+
+        return Response(
+            {
+                "summary": {
+                    "analyzed_projects_count": analyzed_projects_count,
+                    "checked_packages_count": total_checked_packages,
+                    "vulnerable_packages_count": vulnerable_packages_count,
+                    "advisory_findings_count": total_advisory_findings,
+                    "critical_findings_count": critical_findings_count,
+                    "cache_hits_count": None,  # Explicitly omitted/null since per-request cache hit counters are transient
+                },
+                "recent_findings": recent_findings,
+            },
+            status=status.HTTP_200_OK,
+        )
+

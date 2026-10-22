@@ -151,12 +151,7 @@ export function ProjectsPage() {
       ) : (
         <div className="space-y-4">
           <ProjectTable projects={projects} />
-          <ProjectPagination
-            currentPage={currentPage}
-            totalCount={totalCount}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-          />
+         
         </div>
       )}
     </div>

@@ -6,8 +6,10 @@ import useGraphControls from "../../hooks/dependency-graph/useGraphControls";
 import GraphHeader from "./components/GraphHeader";
 import GraphCanvas from "../../components/dependency-graph/GraphCanvas";
 import RebuildConfirmModal from "./components/RebuildConfirmModal";
+import VulnerabilityPanel from "./components/VulnerabilityPanel";
 import { LoadingState } from "../../components/common/LoadingState";
 import { ErrorState } from "../../components/common/ErrorState";
+import { graphService } from "../../services/dependency-graph/graphService";
 
 export function DependencyGraphPage() {
   const { id } = useParams();
@@ -37,6 +39,14 @@ export function DependencyGraphPage() {
   } = useGraphControls();
 
   const [isRebuildModalOpen, setIsRebuildModalOpen] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+
+  // Vulnerability analysis states
+  const [vulnData, setVulnData] = useState(null);
+  const [vulnLoading, setVulnLoading] = useState(false);
+  const [vulnError, setVulnError] = useState(null);
+  const [isVulnPanelOpen, setIsVulnPanelOpen] = useState(false);
+  const [graphViewMode, setGraphViewMode] = useState("normal"); // 'normal' | 'vulnerable'
 
   // Hook for ReactFlow internal node/edge position dragging
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes);
@@ -56,6 +66,35 @@ export function DependencyGraphPage() {
     await triggerBuild(true);
   };
 
+  const handleAnalyzeVulnerabilities = async () => {
+    if (vulnLoading) return;
+    setVulnLoading(true);
+    setVulnError(null);
+    try {
+      const data = await graphService.analyzeVulnerabilities(id);
+      setVulnData(data);
+      // Auto-switch to vulnerable graph view to highlight vulnerable nodes
+      setGraphViewMode("vulnerable");
+    } catch (err) {
+      const message =
+        err.response?.data?.error ||
+        err.message ||
+        "Failed to analyze vulnerabilities.";
+      setVulnError(message);
+    } finally {
+      setVulnLoading(false);
+    }
+  };
+
+  const handleToggleGraphViewMode = async (mode) => {
+    if (mode === "vulnerable" && !vulnData && !vulnLoading) {
+      // If user toggles to vulnerable view and analysis hasn't run yet, run it
+      await handleAnalyzeVulnerabilities();
+    } else {
+      setGraphViewMode(mode);
+    }
+  };
+
   if (loading) {
     return <LoadingState message="Loading dependency graph from database..." />;
   }
@@ -71,7 +110,7 @@ export function DependencyGraphPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Top Header */}
       <GraphHeader
         project={project}
@@ -79,7 +118,22 @@ export function DependencyGraphPage() {
         onOpenRebuildModal={() => setIsRebuildModalOpen(true)}
         onBuildGraph={(force) => triggerBuild(force)}
         building={building}
+        onAnalyzeVulnerabilities={handleAnalyzeVulnerabilities}
+        analyzing={vulnLoading}
+        isCollapsed={isHeaderCollapsed}
+        onToggleCollapse={() =>
+          setIsHeaderCollapsed((previous) => !previous)
+        }
       />
+
+      {/* Vulnerability Findings Panel (Collapsible Drawer/Accordion) */}
+      {/* <VulnerabilityPanel
+        analysisData={vulnData}
+        loading={vulnLoading}
+        error={vulnError}
+        isOpen={isVulnPanelOpen}
+        onToggle={() => setIsVulnPanelOpen((prev) => !prev)}
+      /> */}
 
       {/* Build Error Alert if any */}
       {error && (
@@ -94,11 +148,11 @@ export function DependencyGraphPage() {
         </div>
       )}
 
-      {/* Interactive Graph Canvas */}
+      {/* Interactive Graph Canvas with Normal/Vulnerable Toggle */}
       <GraphCanvas
         nodes={flowNodes}
         edges={flowEdges}
-         projectName={project.project_name}
+        projectName={project.project_name}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         selectedNode={selectedNode}
@@ -114,6 +168,11 @@ export function DependencyGraphPage() {
         onBuildGraph={() => triggerBuild(false)}
         layoutMode={layoutMode}
         onToggleLayoutMode={toggleLayoutMode}
+        graphViewMode={graphViewMode}
+        onToggleGraphViewMode={handleToggleGraphViewMode}
+        vulnerabilityData={vulnData}
+        analyzingVulnerabilities={vulnLoading}
+        onAnalyzeVulnerabilities={handleAnalyzeVulnerabilities}
       />
 
       {/* Force Rebuild Confirmation Dialog */}

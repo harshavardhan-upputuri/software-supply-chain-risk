@@ -1,8 +1,14 @@
 import React from "react";
-import { X, ExternalLink, ArrowRight, ArrowLeft } from "lucide-react";
+import { X, ExternalLink, ArrowRight, ArrowLeft, ShieldAlert } from "lucide-react";
 import { Badge, EcosystemBadge } from "../common/Badge";
 
-export function NodeDetailsPanel({ node, edges = [], onClose, onSelectNode }) {
+export function NodeDetailsPanel({
+  node,
+  edges = [],
+  vulnerabilities = [],
+  onClose,
+  onSelectNode,
+}) {
   if (!node) return null;
 
   const data = node.data || {};
@@ -94,6 +100,75 @@ export function NodeDetailsPanel({ node, edges = [], onClose, onSelectNode }) {
             </span>
           </div>
         </div>
+
+        {/* Vulnerabilities Section (if any detected for this package) */}
+        {vulnerabilities.length > 0 && (
+          <div className="border-t border-rose-100 bg-rose-50/50 -mx-3.5 px-3.5 py-2.5">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-rose-800">
+                <ShieldAlert className="h-3.5 w-3.5 text-rose-600" />
+                Vulnerabilities ({vulnerabilities.length})
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
+                Known CVEs
+              </span>
+            </div>
+
+            <div className="max-h-48 space-y-2 overflow-y-auto pr-0.5">
+              {vulnerabilities.map((vuln, idx) => {
+                const sev = (vuln.severity || "UNKNOWN").toUpperCase();
+                const badgeColor =
+                  sev.includes("CRITICAL")
+                    ? "bg-rose-100 text-rose-800 border-rose-200"
+                    : sev.includes("HIGH")
+                    ? "bg-red-100 text-red-800 border-red-200"
+                    : sev.includes("MEDIUM") || sev.includes("MODERATE")
+                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                    : "bg-slate-100 text-slate-700 border-slate-200";
+
+                return (
+                  <div
+                    key={`${vuln.vulnerability_id}-${idx}`}
+                    className="rounded-lg border border-rose-200/80 bg-white p-2 text-[11px] shadow-2xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-mono font-bold text-rose-700">
+                        {vuln.vulnerability_id}
+                      </span>
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${badgeColor}`}>
+                        {sev}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-600 line-clamp-2 text-[11px] leading-tight">
+                      {vuln.summary || "No description provided."}
+                    </p>
+
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-100">
+                      <span>
+                        Fixed in:{" "}
+                        <strong className="font-mono text-emerald-700">
+                          {vuln.fixed_version || "None"}
+                        </strong>
+                      </span>
+                      {vuln.advisory_url && (
+                        <a
+                          href={vuln.advisory_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-0.5 text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          <span>Advisory</span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Outgoing Dependencies */}
         {outgoing.length > 0 && (

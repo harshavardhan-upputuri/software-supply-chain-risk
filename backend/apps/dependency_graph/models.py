@@ -281,3 +281,84 @@ class ProjectGraphEdge(models.Model):
 
     def __str__(self):
         return f"{self.source_name} -> {self.target_name}"
+
+
+class PackageVulnerabilityCache(models.Model):
+    """Cache of OSV.dev vulnerability check results for a specific package version."""
+
+    STATUS_VULNERABLE = "vulnerable"
+    STATUS_NO_KNOWN_VULNERABILITY = "no_known_vulnerability"
+    STATUS_ERROR = "error"
+
+    STATUS_CHOICES = [
+        (STATUS_VULNERABLE, "Vulnerable"),
+        (STATUS_NO_KNOWN_VULNERABILITY, "No Known Vulnerability"),
+        (STATUS_ERROR, "Error"),
+    ]
+
+    ecosystem = models.CharField(max_length=50, db_index=True)  # MAVEN, PYPI (normalized uppercase)
+    package_name = models.CharField(max_length=255, db_index=True)
+    package_version = models.CharField(max_length=100, db_index=True)
+
+    check_status = models.CharField(
+        max_length=30, choices=STATUS_CHOICES, default=STATUS_NO_KNOWN_VULNERABILITY, db_index=True
+    )
+    last_checked_at = models.DateTimeField(db_index=True)
+    next_check_at = models.DateTimeField(db_index=True)
+    last_error = models.TextField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "package_vulnerability_cache"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ecosystem", "package_name", "package_version"],
+                name="unique_pkg_vuln_cache",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["ecosystem", "package_name", "package_version"]),
+            models.Index(fields=["check_status"]),
+            models.Index(fields=["next_check_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ecosystem}:{self.package_name}@{self.package_version} ({self.check_status})"
+
+
+class VulnerabilityFinding(models.Model):
+    """Specific vulnerability advisory associated with a cached package version."""
+
+    cache = models.ForeignKey(
+        PackageVulnerabilityCache, on_delete=models.CASCADE, related_name="findings"
+    )
+    vulnerability_id = models.CharField(max_length=100, db_index=True)  # e.g., GHSA-..., CVE-...
+    summary = models.TextField(blank=True, default="")
+    severity = models.CharField(max_length=50, null=True, blank=True)
+    affected_range = models.TextField(null=True, blank=True)
+    fixed_version = models.CharField(max_length=100, null=True, blank=True)
+    advisory_url = models.URLField(max_length=1000, null=True, blank=True)
+    raw_data = models.JSONField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "vulnerability_findings"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cache", "vulnerability_id"],
+                name="unique_cache_vulnerability_finding",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["cache", "vulnerability_id"]),
+            models.Index(fields=["vulnerability_id"]),
+            models.Index(fields=["severity"]),
+        ]
+
+    def __str__(self):
+        return f"{self.vulnerability_id} on {self.cache.package_name}@{self.cache.package_version}"
+

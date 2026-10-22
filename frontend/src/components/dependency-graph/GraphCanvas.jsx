@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 
 import NodeDetailsPanel from "./NodeDetailsPanel";
+import CascadingImpactBar from "./CascadingImpactBar";
 import { EmptyState } from "../common/EmptyState";
+import { computeCascadingImpact } from "../../services/dependency-graph/cascadingImpact";
 
 cytoscape.use(dagre);
 
@@ -91,6 +93,89 @@ const stylesheet = [
       "border-color": "#94a3b8",
       "border-width": 1.5,
       color: "#475569",
+      "font-weight": 500,
+    },
+  },
+
+  // Vulnerable Graph Mode Styles
+  // Critical severity
+  {
+    selector: 'node[isVulnerable = "yes"][severity = "CRITICAL"]',
+    style: {
+      "background-color": "#fff1f2",
+      "border-color": "#e11d48",
+      "border-width": 2.5,
+      color: "#9f1239",
+      "font-weight": 600,
+      "shadow-blur": 12,
+      "shadow-color": "#e11d48",
+      "shadow-opacity": 0.25,
+    },
+  },
+  // High severity
+  {
+    selector: 'node[isVulnerable = "yes"][severity = "HIGH"]',
+    style: {
+      "background-color": "#fff1f2",
+      "border-color": "#f43f5e",
+      "border-width": 2.5,
+      color: "#9f1239",
+      "font-weight": 600,
+      "shadow-blur": 10,
+      "shadow-color": "#f43f5e",
+      "shadow-opacity": 0.22,
+    },
+  },
+  // Moderate / Medium severity
+  {
+    selector: 'node[isVulnerable = "yes"][severity = "MEDIUM"], node[isVulnerable = "yes"][severity = "MODERATE"]',
+    style: {
+      "background-color": "#fffbeb",
+      "border-color": "#d97706",
+      "border-width": 2.5,
+      color: "#92400e",
+      "font-weight": 600,
+      "shadow-blur": 10,
+      "shadow-color": "#d97706",
+      "shadow-opacity": 0.2,
+    },
+  },
+  // Low severity
+  {
+    selector: 'node[isVulnerable = "yes"][severity = "LOW"]',
+    style: {
+      "background-color": "#fefce8",
+      "border-color": "#ca8a04",
+      "border-width": 2,
+      color: "#854d0e",
+      "font-weight": 600,
+      "shadow-blur": 8,
+      "shadow-color": "#ca8a04",
+      "shadow-opacity": 0.18,
+    },
+  },
+  // Generic / Unknown severity vulnerable node fallback
+  {
+    selector: 'node[isVulnerable = "yes"][severity = "UNKNOWN"], node[isVulnerable = "yes"][severity = ""]',
+    style: {
+      "background-color": "#fff1f2",
+      "border-color": "#e11d48",
+      "border-width": 2.5,
+      color: "#9f1239",
+      "font-weight": 600,
+      "shadow-blur": 10,
+      "shadow-color": "#e11d48",
+      "shadow-opacity": 0.22,
+    },
+  },
+  // Safe / Clean packages in Vulnerable Graph view (when not project root)
+  {
+    selector: 'node[isVulnerable = "no"][isProjectRoot = "no"]',
+    style: {
+      "background-color": "#f8fafc",
+      "border-color": "#cbd5e1",
+      "border-width": 1.5,
+      color: "#64748b",
       "font-weight": 500,
     },
   },
@@ -236,11 +321,92 @@ const stylesheet = [
       "z-index": 500,
     },
   },
+
+  // Cascading Impact Flow Animation Classes
+  // 1. Confirmed vulnerable node blinking origin
+  {
+    selector: "node.impact-origin",
+    style: {
+      "border-color": "#dc2626",
+      "border-width": 3.5,
+      "background-color": "#fee2e2",
+      color: "#991b1b",
+      "shadow-blur": 22,
+      "shadow-color": "#dc2626",
+      "shadow-opacity": 0.45,
+      "z-index": 1000,
+    },
+  },
+
+  // 2. Newly reached dependent node in current hop (active pulsating amber)
+  {
+    selector: "node.impact-active-hop",
+    style: {
+      "border-color": "#ea580c",
+      "border-width": 3,
+      "background-color": "#ffedd5",
+      color: "#9a3412",
+      "shadow-blur": 18,
+      "shadow-color": "#ea580c",
+      "shadow-opacity": 0.38,
+      "z-index": 800,
+    },
+  },
+
+  // 3. Previously reached dependent node (stabilized amber)
+  {
+    selector: "node.impact-reached",
+    style: {
+      "border-color": "#f97316",
+      "border-width": 2.5,
+      "background-color": "#fff7ed",
+      color: "#c2410c",
+      "shadow-blur": 12,
+      "shadow-color": "#f97316",
+      "shadow-opacity": 0.22,
+      "z-index": 600,
+    },
+  },
+
+  // 4. Edges in the active propagation hop (pulsing amber/orange flow)
+  {
+    selector: "edge.impact-edge-active",
+    style: {
+      width: 3.5,
+      "line-color": "#ea580c",
+      "target-arrow-color": "#ea580c",
+      "target-arrow-shape": "triangle",
+      "arrow-scale": 1.4,
+      opacity: 1,
+      "z-index": 700,
+      "line-style": "dashed",
+    },
+  },
+
+  // 5. Edges reached in previous propagation hops
+  {
+    selector: "edge.impact-edge-reached",
+    style: {
+      width: 2.8,
+      "line-color": "#f97316",
+      "target-arrow-color": "#f97316",
+      "target-arrow-shape": "triangle",
+      "arrow-scale": 1.25,
+      opacity: 0.95,
+      "z-index": 500,
+    },
+  },
 ];
 
 
 
-function buildElements(nodes = [], edges = [], projectName = "Current Project") {
+function buildElements(
+  nodes = [],
+  edges = [],
+  projectName = "Current Project",
+  graphViewMode = "normal",
+  vulnMap = new Map()
+) {
   const elements = [];
   const nodeMap = new Map();
   const aliases = new Map();
@@ -396,17 +562,52 @@ function buildElements(nodes = [], edges = [], projectName = "Current Project") 
 
     const relation = isOriginalPackage ? "PROJECT_PACKAGE" : "INDIRECT";
 
+    // Vulnerability matching in vulnerable view mode
+    const system = data.system || node.system || "";
+    let isVulnerable = "no";
+    let severity = "";
+    let findingsList = [];
+
+    if (graphViewMode === "vulnerable") {
+      const matchKey1 = `${(system || "").toUpperCase()}:${packageName}@${version}`;
+      const matchKey2 = `${packageName}@${version}`;
+      const matchKey3 = packageName;
+
+      findingsList = vulnMap.get(matchKey1) || vulnMap.get(matchKey2) || vulnMap.get(matchKey3) || [];
+      if (findingsList.length > 0) {
+        isVulnerable = "yes";
+        // Calculate highest severity among findings
+        const sevOrder = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, MODERATE: 2, LOW: 1, UNKNOWN: 0 };
+        let maxSev = "UNKNOWN";
+        let maxRank = -1;
+
+        findingsList.forEach((f) => {
+          const s = (f.severity || "UNKNOWN").toUpperCase();
+          const r = sevOrder[s] ?? 0;
+          if (r > maxRank) {
+            maxRank = r;
+            maxSev = s;
+          }
+        });
+        severity = maxSev;
+      }
+    }
+
     const versionText = version
       ? `v${truncateText(version, 14)}`
       : "unpinned";
 
+    const vulnBadgeText = isVulnerable === "yes"
+      ? ` ⚠ [${findingsList.length} ${severity || "VULN"}]`
+      : "";
+
     elements.push({
       data: {
         id,
-        displayLabel: `${truncateText(packageName, 28)}\n${versionText}`,
+        displayLabel: `${truncateText(packageName, 26)}${vulnBadgeText}\n${versionText}`,
         name: packageName,
         version,
-        system: data.system || node.system || "",
+        system,
         depth: displayDepth,
         relation,
         isOriginal: false,
@@ -414,6 +615,10 @@ function buildElements(nodes = [], edges = [], projectName = "Current Project") 
         isRoot: false,
         isProjectRoot: false,
         kind,
+        isVulnerable,
+        severity,
+        findingsCount: findingsList.length,
+        vulnerabilities: findingsList,
       },
     });
   });
@@ -504,12 +709,205 @@ export default function GraphCanvas({
   building = false,
   onBuildGraph,
   onRebuild,
+  graphViewMode = "normal",
+  onToggleGraphViewMode,
+  vulnerabilityData = null,
+  analyzingVulnerabilities = false,
+  onAnalyzeVulnerabilities,
 }) {
   const cyRef = useRef(null);
   const [search, setSearch] = useState(filterQuery);
   const [activeNode, setActiveNode] = useState(null);
 
-  const elements = useMemo(() => buildElements(nodes, edges, projectName), [nodes, edges, projectName]);
+  // Build a lookup map for vulnerabilities by package coordinates
+  const vulnMap = useMemo(() => {
+    const map = new Map();
+    if (!vulnerabilityData?.findings) return map;
+
+    vulnerabilityData.findings.forEach((finding) => {
+      const eco = (finding.ecosystem || "").toUpperCase();
+      const pkg = finding.package_name || "";
+      const ver = finding.package_version || "";
+
+      const k1 = `${eco}:${pkg}@${ver}`;
+      const k2 = `${pkg}@${ver}`;
+      const k3 = pkg;
+
+      [k1, k2, k3].forEach((k) => {
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(finding);
+      });
+    });
+
+    return map;
+  }, [vulnerabilityData]);
+
+  const elements = useMemo(
+    () => buildElements(nodes, edges, projectName, graphViewMode, vulnMap),
+    [nodes, edges, projectName, graphViewMode, vulnMap]
+  );
+
+  // Cascading impact analysis state
+  const impactData = useMemo(() => {
+    if (graphViewMode !== "vulnerable") return null;
+    return computeCascadingImpact(elements);
+  }, [elements, graphViewMode]);
+
+  const [currentStepIdx, setCurrentStepIdx] = useState(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef(null);
+
+  // Clear animation classes from cytoscape
+  const resetAnimationClasses = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy || cy.destroyed()) return;
+    cy.elements().removeClass(
+      "impact-origin impact-active-hop impact-reached impact-edge-active impact-edge-reached"
+    );
+  }, []);
+
+  // Apply visual styling for a specific step
+  const applyStepVisuals = useCallback((step) => {
+    const cy = cyRef.current;
+    if (!cy || cy.destroyed() || !step) return;
+
+    // Reset impact classes
+    cy.elements().removeClass(
+      "impact-origin impact-active-hop impact-reached impact-edge-active impact-edge-reached"
+    );
+
+    // Apply cumulative reached nodes (distinguishing origin vs dependent)
+    step.cumulativeAffectedNodeIds?.forEach((id) => {
+      const nodeEl = cy.getElementById(String(id));
+      if (!nodeEl.length) return;
+
+      if (nodeEl.data("isVulnerable") === "yes") {
+        nodeEl.addClass("impact-origin");
+      } else {
+        nodeEl.addClass("impact-reached");
+      }
+    });
+
+    // Apply active hop pulsating styling
+    if (!step.isOrigin && !step.isComplete) {
+      step.activeNodeIds?.forEach((id) => {
+        const nodeEl = cy.getElementById(String(id));
+        if (nodeEl.length && nodeEl.data("isVulnerable") !== "yes") {
+          nodeEl.removeClass("impact-reached").addClass("impact-active-hop");
+        }
+      });
+    }
+
+    // Apply cumulative edges
+    step.cumulativeAffectedEdgeIds?.forEach((id) => {
+      const edgeEl = cy.getElementById(String(id));
+      if (edgeEl.length) {
+        edgeEl.addClass("impact-edge-reached");
+      }
+    });
+
+    // Apply active hop edges
+    step.activeEdgeIds?.forEach((id) => {
+      const edgeEl = cy.getElementById(String(id));
+      if (edgeEl.length) {
+        edgeEl.removeClass("impact-edge-reached").addClass("impact-edge-active");
+      }
+    });
+  }, []);
+
+  // Stop & cleanup animation
+  const handleStop = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsPlaying(false);
+    setIsPaused(false);
+    setCurrentStepIdx(-1);
+    resetAnimationClasses();
+  }, [resetAnimationClasses]);
+
+  // Pause animation
+  const handlePause = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsPlaying(false);
+    setIsPaused(true);
+  }, []);
+
+  const advanceStepRef = useRef(null);
+
+  // Run next step in animation sequence
+  const advanceStep = useCallback(
+    (stepIdx) => {
+      if (!impactData?.steps || stepIdx >= impactData.steps.length) {
+        setIsPlaying(false);
+        setIsPaused(false);
+        return;
+      }
+
+      setCurrentStepIdx(stepIdx);
+      const step = impactData.steps[stepIdx];
+      applyStepVisuals(step);
+
+      if (stepIdx < impactData.steps.length - 1) {
+        timerRef.current = setTimeout(() => {
+          advanceStepRef.current?.(stepIdx + 1);
+        }, 1600); // 1.6s per hop for comfortable readability
+      } else {
+        setIsPlaying(false);
+        setIsPaused(false);
+      }
+    },
+    [impactData, applyStepVisuals]
+  );
+
+  useEffect(() => {
+    advanceStepRef.current = advanceStep;
+  }, [advanceStep]);
+
+  // Play from start
+  const handlePlay = useCallback(() => {
+    if (!impactData?.hasVulnerabilities || !impactData.steps.length) return;
+    handleStop();
+    setIsPlaying(true);
+    setIsPaused(false);
+    advanceStep(0);
+  }, [impactData, handleStop, advanceStep]);
+
+  // Resume paused animation
+  const handleResume = useCallback(() => {
+    if (!impactData?.steps) return;
+    setIsPlaying(true);
+    setIsPaused(false);
+    const nextIdx = currentStepIdx < impactData.steps.length - 1 ? currentStepIdx + 1 : 0;
+    advanceStep(nextIdx);
+  }, [impactData, currentStepIdx, advanceStep]);
+
+  // Restart animation
+  const handleRestart = useCallback(() => {
+    handlePlay();
+  }, [handlePlay]);
+
+  // Clean up timer on unmount or when view mode / graph changes
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Reset animation if switching away from vulnerable mode or graph data changes
+  useEffect(() => {
+    if (graphViewMode !== "vulnerable") {
+      handleStop();
+    }
+  }, [graphViewMode, handleStop]);
 
   useEffect(() => {
     setSearch(filterQuery);
@@ -682,7 +1080,48 @@ export default function GraphCanvas({
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
       {/* Control Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-3.5 py-2.5">
-        <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+        {/* Left: View Mode Segmented Toggle */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/70">
+          <button
+            type="button"
+            onClick={() => onToggleGraphViewMode?.("normal")}
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              graphViewMode === "normal"
+                ? "bg-white text-slate-800 shadow-2xs border border-slate-200/60"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Normal Graph
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (graphViewMode !== "vulnerable") {
+                onToggleGraphViewMode?.("vulnerable");
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              graphViewMode === "vulnerable"
+                ? "bg-rose-600 text-white shadow-2xs"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span>Vulnerable Graph</span>
+            {vulnerabilityData?.summary?.vulnerable_packages_count > 0 && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  graphViewMode === "vulnerable"
+                    ? "bg-rose-700 text-white"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                {vulnerabilityData.summary.vulnerable_packages_count}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
@@ -746,22 +1185,82 @@ export default function GraphCanvas({
 
 
 
+      {/* Cascading Impact Flow Animation Bar (Vulnerable Graph Mode Only) */}
+      {graphViewMode === "vulnerable" && impactData && (
+        <CascadingImpactBar
+          summary={impactData.summary}
+          hasVulnerabilities={impactData.hasVulnerabilities}
+          currentStep={
+            currentStepIdx >= 0 && currentStepIdx < impactData.steps.length
+              ? impactData.steps[currentStepIdx]
+              : null
+          }
+          totalSteps={impactData.steps.length}
+          isPlaying={isPlaying}
+          isPaused={isPaused}
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onResume={handleResume}
+          onRestart={handleRestart}
+          onStop={handleStop}
+        />
+      )}
+
       {/* Legend & Stats */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-200 bg-white px-4 py-3 text-xs">
-        <span className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-slate-900" />
-          <span className="font-semibold text-slate-800">Project Root</span>
-        </span>
+        {graphViewMode === "vulnerable" ? (
+          <>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border-2 border-rose-600 bg-rose-50" />
+              <span className="font-semibold text-rose-700">Confirmed Vulnerable</span>
+            </span>
 
-        <span className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm border-2 border-emerald-600 bg-emerald-50" />
-          <span className="font-medium text-emerald-800">Direct Dependencies</span>
-        </span>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border-2 border-amber-600 bg-amber-50" />
+              <span className="font-semibold text-amber-700">Reachable Dependent (Impact)</span>
+            </span>
 
-        <span className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm border border-slate-400 bg-white" />
-          <span className="font-medium text-slate-600">Indirect Dependencies</span>
-        </span>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border border-slate-300 bg-slate-50" />
+              <span className="font-medium text-slate-500">Other Dependencies</span>
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-slate-900" />
+              <span className="font-medium text-slate-700">Project Root</span>
+            </span>
+
+            {vulnerabilityData?.summary && (
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="font-medium text-slate-500">Status:</span>
+                <span className="font-bold text-rose-600">
+                  {vulnerabilityData.summary.vulnerable_packages_count} vulnerable
+                </span>
+                <span className="text-slate-400">/</span>
+                <span className="text-slate-600">
+                  {vulnerabilityData.summary.total_packages_checked} checked
+                </span>
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-slate-900" />
+              <span className="font-semibold text-slate-800">Project Root</span>
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border-2 border-emerald-600 bg-emerald-50" />
+              <span className="font-medium text-emerald-800">Direct Dependencies</span>
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-sm border border-slate-400 bg-white" />
+              <span className="font-medium text-slate-600">Indirect Dependencies</span>
+            </span>
+          </>
+        )}
 
         <span className="ml-auto font-mono text-[11px] text-slate-500">
           {elements.filter((el) => !el.data.source).length} nodes
@@ -800,12 +1299,23 @@ export default function GraphCanvas({
         />
 
         {activeNode && (
-          <div className="absolute bottom-3 right-3 top-3 z-10 w-[min(360px,calc(100%-24px))] overflow-hidden rounded-xl shadow-xl ring-1 ring-slate-900/10">
+          <div className="absolute bottom-3 right-3 top-3 z-10 w-[min(380px,calc(100%-24px))] overflow-hidden rounded-xl shadow-xl ring-1 ring-slate-900/10">
             <NodeDetailsPanel
               node={activeNode}
               edges={elements
                 .filter((el) => el.data.source && el.data.target)
                 .map((el) => el.data)}
+              vulnerabilities={
+                activeNode.data?.vulnerabilities ||
+                vulnMap.get(
+                  `${(activeNode.data?.system || "").toUpperCase()}:${activeNode.data?.name || activeNode.name}@${activeNode.data?.version || activeNode.version}`
+                ) ||
+                vulnMap.get(
+                  `${activeNode.data?.name || activeNode.name}@${activeNode.data?.version || activeNode.version}`
+                ) ||
+                vulnMap.get(activeNode.data?.name || activeNode.name) ||
+                []
+              }
               onClose={() => {
                 setActiveNode(null);
                 onClearSelection?.();

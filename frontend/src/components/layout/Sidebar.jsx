@@ -34,12 +34,12 @@ export function Sidebar({
       icon: Boxes,
       end: false,
     },
-    {
-      label: "Cache Monitor",
-      path: "/cache",
-      icon: Database,
-      end: false,
-    },
+    // {
+    //   label: "Cache Monitor",
+    //   path: "/cache",
+    //   icon: Database,
+    //   end: false,
+    // },
   ];
 
   const handleToggle = () => {

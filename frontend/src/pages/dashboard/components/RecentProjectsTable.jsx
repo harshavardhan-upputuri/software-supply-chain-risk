@@ -28,6 +28,7 @@ export function RecentProjectsTable({ projects = [] }) {
               <th className="py-3 px-4">Ecosystem</th>
               <th className="py-3 px-4">Packages</th>
               <th className="py-3 px-4">Graph Status</th>
+              <th className="px-4 py-3.5">Vulnerabilities</th>
               <th className="py-3 px-6 text-right">Actions</th>
             </tr>
           </thead>
@@ -56,7 +57,7 @@ export function RecentProjectsTable({ projects = [] }) {
                   <td className="py-3.5 px-4">
                     {proj.has_graph ? (
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {/* <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> */}
                         Built
                       </span>
                     ) : (
@@ -65,14 +66,34 @@ export function RecentProjectsTable({ projects = [] }) {
                       </span>
                     )}
                   </td>
+                  {/* Vulnerability Status */}
+                  <td className="px-4 py-4">
+                    {proj.vulnerability_status === "vulnerable" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                        {/* <span className="h-2 w-2 rounded-full bg-rose-500" /> */}
+                        <span>
+                          Vulnerable · {proj.findings_count || 1} {proj.findings_count === 1 ? "finding" : "findings"}
+                        </span>
+                      </span>
+                    ) : proj.vulnerability_status === "safe" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        {/* <span className="h-2 w-2 rounded-full bg-emerald-500" /> */}
+                        <span>No known vulnerabilities</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500">
+                        <span>Not analyzed</span>
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3.5 px-6 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Link
+                      {/* <Link
                         to={`/projects/${proj.id}`}
                         className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                       >
                         Details
-                      </Link>
+                      </Link> */}
                       <Link
                         to={`/projects/${proj.id}/graph`}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
